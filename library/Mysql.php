@@ -214,7 +214,7 @@ class Mysql
         return self::$db->lastInsertId();
     }
 
-    protected function createExecSql($data, $isUpdate, $batch)
+    protected function createExecSql($data, $isUpdate, $batch = false)
     {
         if (!$isUpdate) {
             $sql = "INSERT INTO " . $this->pre_sql['table'][0];

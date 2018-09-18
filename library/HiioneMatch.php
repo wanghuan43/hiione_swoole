@@ -30,6 +30,9 @@ class HiioneMatch
 
     public function __construct($market, $type, $redis, $price = 0)
     {
+        require(__DIR__."/../model/Trade.php");
+        require(__DIR__."/../model/UserCoin.php");
+        require(__DIR__."/../model/TradeLog.php");
         $this->redis = $redis;
         $tmp = new Market();
         $this->price = $price;

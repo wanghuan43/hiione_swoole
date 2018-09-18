@@ -21,7 +21,7 @@ class HiioneServer
     protected static $init = [];
     protected $redis;
     private $inableType = ['init'];
-    private $inableBlock = ['index_block', 'trade_block'];
+    private $inableBlock = ['index_block', 'trade_block', 'match_block'];
     protected static $_instance;
 
     public function __construct($config, $host, $port, $redis)
@@ -54,6 +54,7 @@ class HiioneServer
 
     public function onClose($server, $fd)
     {
+        MyLog::setLogLine(date('Y-m-d H:i:s', time()) . "onClose:frame:" . $fd);
         $this->delFrame($fd);
     }
 
@@ -106,16 +107,16 @@ class HiioneServer
     {
         try {
             if (empty($frame->data)) {
-                throw new HiioneException('非法访问,我们会关闭此次链接', 404);
+                throw new HiioneException('非法访问,我们会关闭此次链接1', 404);
             } else {
                 $message = json_decode($frame->data, true);
             }
             if (empty($message['type']) && empty($message['block'])) {
-                throw new HiioneException('非法访问,我们会关闭此次链接', 404);
+                throw new HiioneException('非法访问,我们会关闭此次链接2', 404);
             }
             if (!empty($message['type'])) {
                 if (!in_array($message['type'], $this->inableType)) {
-                    throw new HiioneException('非法访问,我们会关闭此次链接', 404);
+                    throw new HiioneException('非法访问,我们会关闭此次链接3', 404);
                 }
                 switch ($message['type']) {
                     case 'init':
@@ -126,12 +127,12 @@ class HiioneServer
                         $this->setFrame($frame->fd, $message['sessionid']);
                         break;
                     default:
-                        throw new HiioneException('非法访问,我们会关闭此次链接', 404);
+                        throw new HiioneException('非法访问,我们会关闭此次链接4', 404);
                         break;
                 }
             } elseif (!empty($message['block'])) {
                 if (!in_array($message['block'], $this->inableBlock)) {
-                    throw new HiioneException('非法访问,我们会关闭此次链接', 404);
+                    throw new HiioneException('非法访问,我们会关闭此次链接5', 404);
                 }
                 $data = new Data($this->redis);
                 switch ($message['block']) {
@@ -142,12 +143,14 @@ class HiioneServer
                         $return = $data->getTradeBlock();
                         break;
                     case 'match_block':
-                        require('./HiioneMatch.php');
+                        MyLog::setLogLine('进入撮合');
+                        require(__DIR__.'/HiioneMatch.php');
                         $hm = new HiioneMatch($message['market'], $message['tradeType'], $this->redis);
                         $return = $hm->matchTrade();
+                        MyLog::setLogLine(json_encode($return));
                         break;
                     default:
-                        throw new HiioneException('非法访问,我们会关闭此次链接', 404);
+                        throw new HiioneException('非法访问,我们会关闭此次链接6', 404);
                         break;
                 }
                 $this->sendMessage(200, $return, $frame->fd);

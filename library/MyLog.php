@@ -24,6 +24,6 @@ class MyLog
         if (is_object($msg) || is_array($msg)) {
             $msg = json_encode($msg);
         }
-        file_put_contents(self::$file, $msg . "\n", FILE_APPEND);
+        file_put_contents(self::$file, $msg . "\n\n\n", FILE_APPEND);
     }
 }
