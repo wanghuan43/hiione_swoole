@@ -75,7 +75,7 @@ class HiioneServer
         $this->server->start();
     }
 
-    public function setFrame($fd, $block, $sessionid = '')
+    public function setFrame($fd, $sessionid = '')
     {
         if (!isset($this->frame[$fd])) {
             $this->frame[$fd] = $fd;
