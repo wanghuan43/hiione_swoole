@@ -180,7 +180,7 @@ class HiioneMatch
                 if (check_arr($rs)) {
                     $model->commit();
                     $this->tradedig($tl, $one, $two, $buy_fee, $sell_fee, $this->market);
-                    $this->redis->del([
+                    $this->redis->delCache([
                         'wkj_allcoin' . $this->marketInfo['menu_id'],
                         'marketjiaoyie24',
                         'marketappjiaoyi',
