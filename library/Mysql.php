@@ -90,7 +90,7 @@ class Mysql
 
     public function aliase($table, $alias)
     {
-        $this->pre_sql['table'][$table] = [$table, $alias];
+        $this->pre_sql['table'][$table] = [self::$prefix . $table, $alias];
         return $this;
     }
 
