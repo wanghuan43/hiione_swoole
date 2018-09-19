@@ -47,6 +47,7 @@ class HiioneMatch
 
     public function matchTrade()
     {
+        $t1 = microtime(true);
         $model = new HiioneModel();
         $i = 1;
         while (true) {
@@ -249,12 +250,14 @@ class HiioneMatch
                         MyLog::setLogLine('保存400:' . $this->tradeModel->getLastSql());
                         break;
                 }
-                if ($i >= 10) {
-                    break;
-                }
+//                if ($i >= 10) {
+//                    break;
+//                }
                 $i++;
             }
         }
+        $t2 = microtime(true);
+        MyLog::setLogLine('执行次数:' . $i . ';运行时间:' . round($t2 - $t1, 8) . ';调用内存:' . memory_get_usage());
         return true;
     }
 
