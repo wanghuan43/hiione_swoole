@@ -84,6 +84,9 @@ class HiioneMatch
                 $twoU = $this->userCoinModel->setTable('user_coin' . $this->coin1, true)->where(['userid' => $two['userid']])
                     ->lock()->find();
                 MyLog::setLogLine('twoU:' . json_encode($twoU));
+                $twoUt = $this->userCoinModel->setTable('user_coin' . $this->coin2, true)->where(['userid' => $two['userid']])
+                    ->lock()->find();
+                MyLog::setLogLine('twoUt:' . json_encode($twoUt));
 
                 if ($one['price'] < $two['price']) {
                     throw new HiioneException('价格不匹配,程序结束', '100');
