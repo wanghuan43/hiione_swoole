@@ -90,10 +90,7 @@ class Mysql
 
     public function aliase($table, $alias)
     {
-        if (!isset($this->pre_sql['table'][$table])) {
-            $this->setTable($table);
-        }
-        array_push($this->pre_sql['table'][$table], $alias);
+        $this->pre_sql['table'][$table] = [$table, $alias];
         return $this;
     }
 

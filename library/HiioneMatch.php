@@ -328,7 +328,7 @@ class HiioneMatch
             $fee = $left;
         }
         $tmp = $model->setTable('coin_slog', true)->fields('SUM(num) AS total')->where(['date' => ['BETWEEN', [$b, $e - 1]], 'userid' => $userid, 'type' => 10, 'user_per' => 0])->find();
-        $sum = $tmp['total'];
+        $sum = (empty($tmp['total']) ? 0 : $tmp['total']);
         $per = round($sum / $tv * 100, 2);
         $eve = round($tv * 0.01, 8);
         $lp = round($dig['dig_user'] - $per, 2);
