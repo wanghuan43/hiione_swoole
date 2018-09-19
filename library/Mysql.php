@@ -23,6 +23,7 @@ class Mysql
     ];
     protected static $prefix;
     protected $query;
+    protected $sql;
 
     public static function init($config)
     {
@@ -62,7 +63,10 @@ class Mysql
 
     public function where(array $conditions)
     {
-        array_merge($this->pre_sql['where'], $this->createWhere($conditions));
+        $tmp = $this->createWhere($conditions);
+        foreach ($tmp as $val) {
+            $this->pre_sql['where'][] = $val;
+        }
         return $this;
     }
 
@@ -159,7 +163,7 @@ class Mysql
                 $sql .= implode(" ", $this->pre_sql['join']);
             }
             if (count($this->pre_sql['where']) > 0) {
-                $sql .= "WHERE " . implode('and', $this->pre_sql['where']) . " ";
+                $sql .= "WHERE " . implode(' AND ', $this->pre_sql['where']) . " ";
             }
             if (count($this->pre_sql['group']) > 0) {
                 $sql .= "GROUP BY " . implode(',', $this->pre_sql['group']) . " ";
@@ -174,13 +178,15 @@ class Mysql
                 $sql .= "FOR UPDATE";
             }
         }
+        $this->sql = $sql;
+        MyLog::setLogLine("查询:" . $sql);
         $this->cleanSql();
         return $sql;
     }
 
     public function getLastSql()
     {
-        return $this->createSql();
+        return $this->sql;
     }
 
     public function lock()
@@ -193,6 +199,7 @@ class Mysql
     {
         $sql = $this->createExecSql($data, $isUpdate);
         $num = self::$db->exec($sql);
+        MyLog::setLogLine('写入结果:' . $num);
         if (!$isUpdate && !$batch) {
             return self::$db->lastInsertId();
         }
@@ -201,12 +208,12 @@ class Mysql
 
     public function setInc($field, $num = 1)
     {
-        return $this->save([$field => [$field, '+', $num]]);
+        return $this->save([$field => [$field, '+', $num]], true);
     }
 
     public function setSub($field, $num = 1)
     {
-        return $this->save([$field => [$field, '-', $num]]);
+        return $this->save([$field => [$field, '-', $num]], true);
     }
 
     public function getLastId()
@@ -216,8 +223,9 @@ class Mysql
 
     protected function createExecSql($data, $isUpdate, $batch = false)
     {
+        $table = reset($this->pre_sql['table']);
         if (!$isUpdate) {
-            $sql = "INSERT INTO " . $this->pre_sql['table'][0];
+            $sql = "INSERT INTO " . $table;
             $keys = array_keys($data);
             $values = array_values($data);
             $sql .= "(`" . implode("`,`", $keys) . "`)";
@@ -227,7 +235,7 @@ class Mysql
                 $sql .= " VALUE('" . implode("','", $values) . "')";
             }
         } else {
-            $sql = "UPDATE " . $this->pre_sql['table'][0] . " SET ";
+            $sql = "UPDATE " . $table . " SET ";
             $sets = [];
             foreach ($data as $key => $value) {
                 if (is_array($value)) {
@@ -241,6 +249,8 @@ class Mysql
                 $sql .= " WHERE " . implode('and', $this->pre_sql['where']);
             }
         }
+        $this->sql = $sql;
+        MyLog::setLogLine("写入:" . $sql);
         $this->cleanSql();
         return $sql;
     }
@@ -248,6 +258,7 @@ class Mysql
     protected function cleanSql()
     {
         $this->pre_sql = [
+            'table' => $this->pre_sql['table'],
             'fields' => '',
             'where' => [],
             'join' => [],

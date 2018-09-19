@@ -144,7 +144,6 @@ class HiioneServer
                         break;
                     case 'match_block':
                         MyLog::setLogLine('进入撮合');
-                        require(__DIR__.'/HiioneMatch.php');
                         $hm = new HiioneMatch($message['market'], $message['tradeType'], $this->redis);
                         $return = $hm->matchTrade();
                         MyLog::setLogLine(json_encode($return));
