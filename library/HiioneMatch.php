@@ -351,7 +351,7 @@ class HiioneMatch
         if (array_key_exists($userid, $autoTrade)) {
             $userid = $ex['plat_user'];
         }
-        $this->userCoinModel->startTrans();
+        $this->userCoinModel->beginTransaction();
         $update = $this->userCoinModel->changeUserCoin('hit', 'hit', $userid, $fee);
         if ($update) {
             $this->userCoinModel->commit();
