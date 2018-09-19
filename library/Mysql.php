@@ -103,7 +103,7 @@ class Mysql
     public function join($table, $aliase, $data, $op = 'LEFT')
     {
         $table = self::$prefix . $table;
-        $this->pre_sql['join'][] = $op . " JOIN " . $table . " AS " . $aliase . " ON " . $aliase . "." . $data[0] . $data[1] . $data[2];
+        $this->pre_sql['join'][] = $op . " JOIN " . $table . " AS " . $aliase . " ON " . $data[0] . $data[1] . $data[2];
         return $this;
     }
 

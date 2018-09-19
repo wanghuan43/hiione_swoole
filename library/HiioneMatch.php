@@ -342,11 +342,11 @@ class HiioneMatch
             return false;
         }
         $this->userCoinModel->setTable('user_coinhit', true);
-        $q = $model->setTable('auto_trade', true)->aliase('auto_trade', 'a')
-            ->fields('b.name,a.userid')->join('market', 'b', ['market', '=', 'b.id'])->select();
+        $q = $model->setTable('auto_trade', true)
+            ->fields('userid')->group('userid')->order('userid ASC')->select();
         $autoTrade = [];
         foreach ($q as $vv) {
-            $autoTrade[$vv['userid']][$vv['name']] = $vv['name'];
+            $autoTrade[$vv['userid']] = $vv['userid'];
         }
         if (array_key_exists($userid, $autoTrade)) {
             $userid = $ex['plat_user'];
