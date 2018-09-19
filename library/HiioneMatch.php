@@ -271,9 +271,11 @@ class HiioneMatch
         $ex = $this->redis->get('extend');
         MyLog::setLogLine('extend:' . json_encode($ex));
         if (empty($ex['trade'])) {
+            MyLog::setLogLine("错误1");
             return false;
         }
         if ($cm['trade_num'] <= 0) {
+            MyLog::setLogLine("错误2");
             return false;
         }
         $hour = intval(date('G', $times));
@@ -292,12 +294,15 @@ class HiioneMatch
             }
         }
         if (empty($tv)) {
+            MyLog::setLogLine("错误3");
             return false;
         }
         $left = $this->redis->get('dig' . date('Ymd') . $tt, false);
+        MyLog::setLogLine('dig' . date('Ymd') . $tt . ':' . json_encode($left));
         if ($left === false) {
             $left = $tv;
         } elseif ($left <= 0) {
+            MyLog::setLogLine("错误4");
             return false;
         }
         $fee = round(($type == 1 ? $buy_fee : $sell_fee) * ($dig['dig_per'] / 100), 8);
@@ -305,9 +310,11 @@ class HiioneMatch
         $tmp = explode("_", $market);
         $coin = $tmp[1];
         if ($coin == 'hit') {
+            MyLog::setLogLine("错误5");
             return false;
         }
         if ($tmp[0] == 'hit' && $type == 1) {
+            MyLog::setLogLine("错误6");
             return false;
         }
         $rates = $this->redis->get('rates');
@@ -331,6 +338,7 @@ class HiioneMatch
                 $fee = $t;
             }
         } else {
+            MyLog::setLogLine("错误7");
             return false;
         }
         $this->userCoinModel->setTable('user_coinhit', true);
