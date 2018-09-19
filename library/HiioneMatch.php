@@ -327,7 +327,7 @@ class HiioneMatch
         if ($fee > $left) {
             $fee = $left;
         }
-        $tmp = $model->setTable('coin_slog', true)->field('SUM(num) AS total')->where(['date' => ['BETWEEN', [$b, $e - 1]], 'userid' => $userid, 'type' => 10, 'user_per' => 0])->find();
+        $tmp = $model->setTable('coin_slog', true)->fields('SUM(num) AS total')->where(['date' => ['BETWEEN', [$b, $e - 1]], 'userid' => $userid, 'type' => 10, 'user_per' => 0])->find();
         $sum = $tmp['total'];
         $per = round($sum / $tv * 100, 2);
         $eve = round($tv * 0.01, 8);
@@ -343,7 +343,7 @@ class HiioneMatch
         }
         $this->userCoinModel->setTable('user_coinhit', true);
         $q = $model->setTable('auto_trade', true)->aliase('auto_trade', 'a')
-            ->field('b.name,a.userid')->join('market', 'b', ['market', '=', 'b.id'])->select();
+            ->fields('b.name,a.userid')->join('market', 'b', ['market', '=', 'b.id'])->select();
         $autoTrade = [];
         foreach ($q as $vv) {
             $autoTrade[$vv['userid']][$vv['name']] = $vv['name'];
