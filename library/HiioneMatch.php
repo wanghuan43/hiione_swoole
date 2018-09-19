@@ -60,7 +60,7 @@ class HiioneMatch
                     ->order("price ASC,id ASC")->find();
                 MyLog::setLogLine('twoT:' . json_encode($twoT));
 
-                if (!$oneT && !$twoT) {
+                if (!$oneT || !$twoT) {
                     throw new HiioneException('', '100');
                 }
 
