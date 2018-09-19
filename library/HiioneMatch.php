@@ -257,7 +257,7 @@ class HiioneMatch
             }
         }
         $t2 = microtime(true);
-        MyLog::setLogLine('执行次数:' . $i . ';运行时间:' . round($t2 - $t1, 8) . ';调用内存:' . memory_get_usage());
+        MyLog::setLogLine('执行次数:' . $i . ';运行时间:' . round($t2 - $t1, 8) . ';调用内存:' . convert(memory_get_usage()));
         return true;
     }
 
