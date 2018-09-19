@@ -299,7 +299,7 @@ class HiioneMatch
         }
         $left = $this->redis->get('dig' . date('Ymd') . $tt, false);
         MyLog::setLogLine('dig' . date('Ymd') . $tt . ':' . json_encode($left));
-        if ($left === false) {
+        if ($left === null) {
             $left = $tv;
         } elseif ($left <= 0) {
             MyLog::setLogLine("错误4");
