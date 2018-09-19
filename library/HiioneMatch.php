@@ -352,12 +352,7 @@ class HiioneMatch
             $userid = $ex['plat_user'];
         }
         $this->userCoinModel->startTrans();
-        $sqlTMP = $this->userCoinModel->fields('COUNT(1) as c')->where(['userid' => $userid])->lock()->find();
-        if (!empty($sqlTMP['c'])) {
-            $update = $this->userCoinModel->where(['userid' => $userid])->setInc('hit', $fee);
-        } else {
-            $update = $this->userCoinModel->save(['userid' => $userid, 'hit' => $fee, 'hitd' => 0, 'hitb' => 0]);
-        }
+        $update = $this->userCoinModel->changeUserCoin('hit', 'hit', $userid, $fee);
         if ($update) {
             $this->userCoinModel->commit();
             $left = round($left - $fee, 8);
