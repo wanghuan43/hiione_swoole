@@ -71,7 +71,7 @@ class HiioneMatch
                     ->order("price ASC,id ASC")->lock()->find();
                 MyLog::setLogLine('two:' . json_encode($two));
 
-                if (!$one && !$two) {
+                if (!$one || !$two) {
                     throw new HiioneException('', '100');
                 }
                 $oneU = $this->userCoinModel->setTable('user_coin' . $this->coin2, true)->where(['userid' => $one['userid']])
