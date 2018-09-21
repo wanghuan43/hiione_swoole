@@ -5,12 +5,12 @@
  * Date: 2018/8/30
  * Time: 17:09
  */
-function changeToRMB($market, $value)
+function changeToRMB($market, $value, $usdt = false)
 {
     $value = sprintf("%1\$.8f", $value);
     $redis = \hiione\library\MyRedis::getInstance();
     $rates = $redis->get('rates');
-    $usdtormb = (\hiione\library\HiioneServer::getInit()['language'] == 'en-us') ? 1 : $redis->get('usdtormb');
+    $usdtormb = ($usdt ? 1 : $redis->get('usdtormb'));
     $market = explode('_', $market);
     if ($market[1] != 'usdt') {
         $usdt = $rates['rates']['usdt-' . $rates['base_coin']];

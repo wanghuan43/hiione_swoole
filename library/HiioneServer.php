@@ -21,7 +21,7 @@ class HiioneServer
     protected static $init = [];
     protected $redis;
     private $inableType = ['init'];
-    private $inableBlock = ['index_block', 'trade_block', 'match_block'];
+    private $inableBlock = ['index_block', 'trade_block', 'match_block', 'kline_block'];
     protected static $_instance;
 
     public function __construct($config, $host, $port, $redis)
@@ -137,15 +137,22 @@ class HiioneServer
                 $data = new Data($this->redis);
                 switch ($message['block']) {
                     case 'index_block':
-                        $return = $data->getIndexBlock($message['ids']);
+                        $return = $data->getIndexBlock($message['ids'], $message['uuu']);
                         break;
                     case 'trade_block':
-                        $return = $data->getTradeBlock();
+                        $return = $data->getTradeBlock($message['market'], $message['uuu']);
                         break;
                     case 'match_block':
                         MyLog::setLogLine('进入撮合');
                         $hm = new HiioneMatch($message['market'], $message['tradeType'], $this->redis);
                         $return = $hm->matchTrade();
+                        MyLog::setLogLine(json_encode($return));
+                        break;
+                    case 'kline_block':
+                        MyLog::setLogLine('进入撮合');
+                        $message['since'] = isset($message['since']) ? round($message['since'] / 1000) : time();
+                        $hm = new Kline($this->redis, $message['symbol'], $message['times'], $message['size'], $message['since']);
+                        $return = $hm->getKline();
                         MyLog::setLogLine(json_encode($return));
                         break;
                     default:

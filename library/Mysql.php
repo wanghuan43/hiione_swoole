@@ -24,12 +24,14 @@ class Mysql
     protected static $prefix;
     protected $query;
     protected $sql;
+    public static $config;
 
     public static function init($config)
     {
         $dsn = "mysql:host=" . $config['hostname'] . ";dbname=" . $config['database'] . ";port=" . $config['hostport'];
         self::$db = new \PDO($dsn, $config['username'], $config['password'], array(\PDO::MYSQL_ATTR_INIT_COMMAND => "set names utf8"));
         self::$prefix = $config['prefix'];
+        self::$config = $config;
     }
 
     public function beginTransaction()
@@ -116,21 +118,31 @@ class Mysql
         return $this->query;
     }
 
-    public function find()
+    public function find($sql = '')
     {
         $this->limit(1);
-        return $this->query()->fetch(\PDO::FETCH_ASSOC);
+        $query = $this->query($sql);
+        if ($query) {
+            return $query->fetch(\PDO::FETCH_ASSOC);
+        } else {
+            return false;
+        }
     }
 
-    public function select()
+    public function select($sql = '')
     {
-        return $this->query()->fetchAll(\PDO::FETCH_ASSOC);
+        $query = $this->query($sql);
+        if ($query) {
+            return $query->fetchAll(\PDO::FETCH_ASSOC);
+        } else {
+            return [];
+        }
     }
 
     public function sum($filed)
     {
-        $tmp = $this->fields('SUM(`' . $filed . '`) AS sumC')->find();
-        return $tmp['sumC'];
+        $tmp = $this->fields('SUM(`' . $filed . '`) AS ' . $filed)->find();
+        return $tmp[$filed];
     }
 
     public function createSql($sql = NULL)
@@ -274,6 +286,13 @@ class Mysql
                 switch (strtolower($value[0])) {
                     case 'between':
                         $where = "`$key` " . $value[0] . " '" . implode("' AND '", $value[1]) . "'";
+                        break;
+                    case 'neq':
+                    case '<>':
+                        $where = "`$key` <> '" . $value[1] . "'";
+                        break;
+                    case '>=':
+                        $where = "`$key` >= '" . $value[1] . "'";
                         break;
                     default:
                         $where = "`$key`" . $value[0] . "'" . $value[1] . "'";

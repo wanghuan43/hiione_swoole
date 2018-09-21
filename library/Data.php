@@ -9,6 +9,7 @@
 namespace hiione\library;
 
 use hiione\model\Market;
+use hiione\model\TradeLog;
 
 class Data
 {
@@ -19,9 +20,10 @@ class Data
         $this->redis = $redis;
     }
 
-    public function getIndexBlock($ids)
+    public function getIndexBlock($ids, $uid)
     {
         $marketModel = new Market();
+        $marketModel->setTable('market', true);
         $model = new HiioneModel();
         $extend = $this->redis->get('extend');
         $jiaoyiqu = $this->redis->get('jiaoyiqu');
@@ -54,14 +56,10 @@ class Data
                 $v['title'] = $coin[$v['xnb']]['title'] . '(' . strtoupper($v['xnb']) . '/' . strtoupper($v['rmb']) . ')';
                 $v['title_pro'] = strtoupper($v['xnb']) . '/' . strtoupper($v['rmb']);
                 $v['navtitle'] = $coin[$v['xnb']]['title'] . '(' . strtoupper($v['xnb']) . ')';
-                if ($v['begintrade']) {
-                    $v['begintrade'] = $v['begintrade'];
-                } else {
+                if (!$v['begintrade']) {
                     $v['begintrade'] = "00:00:00";
                 }
-                if ($v['endtrade']) {
-                    $v['endtrade'] = $v['endtrade'];
-                } else {
+                if (!$v['endtrade']) {
                     $v['endtrade'] = "23:59:59";
                 }
                 $ml[$v['name']] = $v;
@@ -119,14 +117,206 @@ class Data
                 $data[$k]['data'] = $tendency;
                 $data[$k]['yprice'] = $v['new_price'];
             }
-            $this->redis->set('trends', $data);
+            $this->redis->set('trades', $data);
         }
         $return['trades'] = $data;
+        $base = 60 * 60;
+        $time = date('G', time());
+        $time = $time * $base;
+        $trade_manager = $this->redis->get('trade_manager');
+        if (!$trade_manager) {
+            $trade_manager = $model->setTable('coin_manager')->find();
+            $trade_manager['dig_time'] = json_decode($trade_manager['dig_time'], true);
+            $trade_manager['trade_time'] = json_decode($trade_manager['trade_time'], true);
+            $this->redis->set('trade_manager', $trade_manager);
+        }
+        $dig_time = $trade_manager['dig_time'];
+        $tv = 0;
+        $tt = 0;
+        foreach ($dig_time as $key => $value) {
+            $begin = $key * $base;
+            $end = ($key + $trade_manager['dig_hour']) * $base - 1;
+            if ($time >= $begin && $time <= $end) {
+                $tt = round(($end + 1) / $base);
+                $tv = $value;
+                break;
+            }
+        }
+        $num = $this->redis->get('dig' . date('Ymd') . $tt);
+        if (!$num) {
+            $num = $tv;
+        }
+        $return['indexDiv']['change_coin'] = $num;
+        $query = $model->select("SELECT TABLE_NAME FROM `INFORMATION_SCHEMA`.`TABLES` 
+                                      WHERE `TABLE_SCHEMA`='hidb' AND `TABLE_NAME`='wkj_trade_log%' ");
+        $users = [];
+        foreach ($query as $value) {
+            if ($value['table_name'] == 'wkj_tarde_log') {
+                continue;
+            }
+            $mt = explode("_", $value['table_name']);
+            $coin = $mt[count($mt) - 1];
+            if ($coin == 'hit') {
+                continue;
+            }
+            $sql_buy = "SELECT SUM(fee_buy) as fee_buy,market,userid
+                  FROM " . $value['table_name'] . " WHERE `status` = 1 AND `type` = '1' AND addtime BETWEEN $begin AND $end
+                  GROUP BY userid";
+            $sql_sell = "SELECT SUM(fee_sell) as fee_sell,market,peerid
+                  FROM " . $value['table_name'] . " WHERE `status` = 1 AND `type` = '2' AND addtime BETWEEN $begin AND $end
+                  GROUP BY peerid";
+            $buy = $model->select($sql_buy);
+            $sell = $model->select($sql_sell);
+            foreach ($buy as $val) {
+                $usdt = changeToRMB($val['market'], $val['fee_buy'], true);
+                if (isset($users[$val['userid']])) {
+                    $users[$val['userid']] = round($users[$val['userid']] + $usdt, 8);
+                } else {
+                    $users[$val['userid']] = $usdt;
+                }
+            }
+            foreach ($sell as $val) {
+                $usdt = changeToRMB($val['market'], $val['fee_sell'], true);
+                if (isset($users[$val['peerid']])) {
+                    $users[$val['peerid']] = round($users[$val['peerid']] + $usdt, 8);
+                } else {
+                    $users[$val['peerid']] = $usdt;
+                }
+            }
+        }
+        $tun = count($users) * ($trade_manager['trade_total'] / 100);
+        if ($tun < 1) {
+            $tun = 1;
+        } else {
+            $tun = floor($tun);
+        }
+        $a = array_chunk($users, $tun)[0];
+        $return['indexDiv']['hit_min'] = (min($a) ? min($a) : 0);
+        $return['indexDiv']['hit_max'] = (max($a) ? max($a) : 0);
+        if (!empty($uid)) {
+            $return['indexDiv']['my_poundage'] = (isset($users[$uid]) ? $users[$uid] : 0);
+        }
         return $return;
     }
 
-    public function getTradeBlock()
+    public function getTradeBlock($market, $userid, $name, $menu_id)
     {
-        return ['我是交易代码'];
+        $return = [];
+        $mmodel = new Market();
+        $minfo = $mmodel->getMarketByName($market);
+
+        $buyData = array();
+        $length = 10;
+        $buy = $this->redis->lRange('trade_buy' . $market, 0, -1);
+        $sell = $this->redis->lRange('trade_sell' . $market, 0, -1);
+        for ($i = 0; $i < $length; $i++) {
+            if (!json_decode($buy[0], true)[$i]) {
+                continue;
+            }
+            $buyData['buy'][] = json_decode($buy[0], true)[$i];;
+        }
+        $sell_data = array_reverse(json_decode($sell[0], true));
+        for ($i = 0; $i < $length; $i++) {
+            if (!$sell_data[$i]) {
+                continue;
+            }
+            $buyData['sell'][] = $sell_data[$i];
+        }
+        $buyData['sell'] = array_reverse($buyData['sell']);
+
+        $data['depth']['buy'] = $buyData['buy'];
+        $data['depth']['sell'] = $buyData['sell'];
+        $this->redis->set('ajax_buy' . $market, $buyData['buy'][0][0]);
+        $this->redis->set('ajax_sell' . $market, $buyData['sell'][($length - 1)][0]);
+        $this->redis->set('getJsonTop' . $market, null);
+        $return['depth'] = $data;
+
+        $model = new HiioneModel();
+        $data = $this->redis->get('getTradelog' . $market);
+        if (!$data) {
+            $tradeLog = $model->setTable('trade_log' . $market, true)->order('id desc')->limit(50)->select();
+
+            if ($tradeLog) {
+                foreach ($tradeLog as $k => $v) {
+                    $data['tradelog'][$k]['addtime'] = date('m-d H:i:s', $v['addtime']);
+                    $data['tradelog'][$k]['type'] = $v['type'];
+                    $data['tradelog'][$k]['price'] = $v['price'];
+                    $data['tradelog'][$k]['num'] = round($v['num'], 6);
+                    $data['tradelog'][$k]['mum'] = round($v['mum'], 6);
+                    $data['tradelog'][$k]['price_rmb'] = changeToRMB($market, $v['price']);
+                }
+
+                $this->redis->set('getTradelog' . $market, $data);
+            }
+        }
+        $return['tradelog'] = $data;
+
+        $name = strtolower($name);
+        $tables = $model->setTable('market', true)->aliase('l1')->fields('l1.name,l1.change')
+            ->join('front_menu', 'l2', ['l1.menu', '=', 'l2.id'])
+            ->where('l2.parent=' . $menu_id . ' AND l1.name LIKE \'%_' . $name . '\' AND l1.status=\'1\'')->select();
+        $lists = [];
+        foreach ($tables as $value) {
+            $table = 'trade_log' . $value['name'];
+            /**
+             * dengkaiyang 2018-08-15
+             * start
+             */
+            $tmp = $model->setTable($table, true)->fields('price as per1')
+                ->order("endtime desc,addtime desc,id desc")->find();
+            $tmp['p'] = $value['change'];
+            /**
+             * dengkaiyang
+             * end
+             */
+            $tmp['coin'] = strtoupper(explode('_', $value['name'])[0]);
+            $rmb = changeToRMB($value['name'], $tmp['per1']);
+            if ($rmb <= 0) {
+                $rmb = '0.00';
+            }
+            $tmp['per1_rmb'] = $rmb;
+            $lists[] = $tmp;
+        }
+        $tmp = [];
+        foreach ($lists as $key => $value) {
+            $tmp[$key] = $value['coin'];
+        }
+        array_multisort($tmp, SORT_ASC, $lists);
+        $return['zonedata'] = $lists;
+
+        $data = $this->redis->get('getJsonTop' . $market);
+        if (!$data) {
+            if ($market) {
+                $data['info']['img'] = $minfo['xnbimg'];
+                $data['info']['title'] = $minfo['title'];
+                $data['info']['new_price'] = $minfo['new_price'];
+                $data['info']['new_price_rmb'] = changeToRMB($market, $minfo['new_price']);
+                if ($minfo['zhang'] > 0) {
+                    if ($minfo['hou_price'] > 0) {
+                        $data['info']['zhang'] = $minfo['hou_price'] + floatval($minfo['hou_price'] * floatval(($minfo['zhang']) / 100));
+                    }
+                } else {
+                    $data['info']['zhang'] = '';
+                }
+                if ($minfo['die'] > 0) {
+                    if ($minfo['hou_price'] > 0) {
+                        $data['info']['die'] = $minfo['hou_price'] - floatval($minfo['hou_price'] * floatval(($minfo['die']) / 100));
+                    }
+                } else {
+                    $data['info']['die'] = '';
+                }
+                $data['info']['max_price'] = $minfo['max_price'];
+                $data['info']['min_price'] = $minfo['min_price'];
+                $data['info']['buy_price'] = $this->redis->get('ajax_buy' . $market) ? $this->redis->get('ajax_buy' . $market) : $minfo['buy_price'];
+                $data['info']['sell_price'] = $this->redis->get('ajax_sell' . $market) ? $this->redis->get('ajax_sell' . $market) : $minfo['sell_price'];
+                $totle_mum = round($model->setTable('trade_log' . $market)->sum('mum'), 6);
+                $data['info']['volume'] = $totle_mum * 2;
+                $data['info']['change'] = $minfo['change'];
+                $this->redis->set('getJsonTop' . $market, $data);
+            }
+        }
+        $return['topLine'] = $data;
+
+        return $return;
     }
 }
