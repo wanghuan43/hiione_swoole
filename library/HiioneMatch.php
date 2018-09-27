@@ -215,6 +215,7 @@ class HiioneMatch
                 if (check_arr($rs)) {
                     MyLog::setLogLine('撮合成功');
                     $model->commit();
+                    $this->addListTrade($this->market);
                     $this->tradedig($tl, $one, $two, $buy_fee, $sell_fee, $this->market);
                     $this->redis->delCache([
                         'wkj_allcoin' . $this->marketInfo['menu_id'],
@@ -381,6 +382,39 @@ class HiioneMatch
             ]);
         } else {
             $this->userCoinModel->rollback();
+        }
+    }
+
+    /****下单以后将订单加入到redis里面***********/
+    private function addListTrade($market)
+    {
+        $this->redis->set($market . 'LengthBuy', 10);
+        $this->redis->set($market . 'LengthSell', 10);
+        $db1 = new HiioneModel();
+        $db1->setTable(strtoupper('trade' . $market), true);
+        $buy_list = $db1->fields('price,sum(num) as num,sum(deal) as deal')->where(['type' => 1, 'status' => '0'])->group('price')->order('price DESC')->limit(10)->select();
+        $sell_list = $db1->fields('price,sum(num) as num,sum(deal) as deal')->where(['type' => 2, 'status' => '0'])->group('price')->order('price ASC')->limit(10)->select();
+        //$redis = $this->connectRedis();
+        $tmp_arr_buy = array();
+        $tmp_arr_sell = array();
+        $this->redis->del('trade_buy' . $market);
+        $this->redis->del('trade_sell' . $market);
+        if ($buy_list) {
+            foreach ($buy_list as $value) {
+                $tmp_arr_buy[] = [$value['price'], ($value['num'] - $value['deal']), round($value['price'] * ($value['num'] - $value['deal']), 8)];
+            }
+            $this->redis->lPush('trade_buy' . $market, json_encode($tmp_arr_buy));
+        }
+        if ($sell_list) {
+            foreach ($sell_list as $value) {
+                $tmp_arr_sell[] = [$value['price'], ($value['num'] - $value['deal']), round($value['price'] * ($value['num'] - $value['deal']), 8)];
+            }
+            $price = [];
+            foreach ($tmp_arr_sell as $key => $value) {
+                $price[$key] = $value[0];
+            }
+            array_multisort($price, SORT_DESC, $tmp_arr_sell);
+            $this->redis->lPush('trade_sell' . $market, json_encode($tmp_arr_sell));
         }
     }
 }
