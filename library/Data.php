@@ -71,9 +71,11 @@ class Data
         }
         $themarketLogs = $this->redis->get('marketjiaoyie24');
         if (!$themarketLogs) {
-            foreach ($ml as $k => $v) {
-                $themarketLogs[$k] = round($model->setTable('trade_log' . $k, true)->sum('mum'), 6);
-                $themarketLogs[$k] = $themarketLogs[$k] * 2;
+            foreach ($jiaoyiqu as $k => $v) {
+                foreach ($v as $kk => $vv) {
+                    $themarketLogs[$kk] = round($model->setTable('trade_log' . $kk, true)->sum('mum'), 6);
+                    $themarketLogs[$kk] = $themarketLogs[$kk] * 2;
+                }
             }
             $this->redis->set('marketjiaoyie24', $themarketLogs);
         }
@@ -112,10 +114,12 @@ class Data
         $data = $this->redis->get('trades');
         if (!$data) {
             $data = [];
-            foreach ($ml as $k => $v) {
-                $tendency = json_decode($v['tendency'], true);
-                $data[$k]['data'] = $tendency;
-                $data[$k]['yprice'] = $v['new_price'];
+            foreach ($jiaoyiqu as $k => $v) {
+                foreach ($v as $kk => $vv) {
+                    $tendency = json_decode($vv['tendency'], true);
+                    $data[$kk]['data'] = $tendency;
+                    $data[$kk]['yprice'] = $vv['new_price'];
+                }
             }
             $this->redis->set('trades', $data);
         }
