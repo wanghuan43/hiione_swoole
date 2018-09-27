@@ -188,15 +188,20 @@ class Data
                 }
             }
         }
-        $tun = count($users) * ($trade_manager['trade_total'] / 100);
-        if ($tun < 1) {
-            $tun = 1;
+        if (count($users) == 0) {
+            $return['indexDiv']['hit_min'] = 0;
+            $return['indexDiv']['hit_max'] = 0;
         } else {
-            $tun = floor($tun);
+            $tun = count($users) * ($trade_manager['trade_total'] / 100);
+            if ($tun < 1) {
+                $tun = 1;
+            } else {
+                $tun = floor($tun);
+            }
+            $a = array_chunk($users, $tun)[0];
+            $return['indexDiv']['hit_min'] = (min($a) ? min($a) : 0);
+            $return['indexDiv']['hit_max'] = (max($a) ? max($a) : 0);
         }
-        $a = array_chunk($users, $tun)[0];
-        $return['indexDiv']['hit_min'] = (min($a) ? min($a) : 0);
-        $return['indexDiv']['hit_max'] = (max($a) ? max($a) : 0);
         if (!empty($uid)) {
             $return['indexDiv']['my_poundage'] = (isset($users[$uid]) ? $users[$uid] : 0);
         }
