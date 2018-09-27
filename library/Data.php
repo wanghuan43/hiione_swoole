@@ -199,7 +199,7 @@ class Data
         return $return;
     }
 
-    public function getTradeBlock($market, $userid, $name, $menu_id)
+    public function getTradeBlock($market, $userid)
     {
         $return = [];
         $mmodel = new Market();
@@ -238,7 +238,7 @@ class Data
 
             if ($tradeLog) {
                 foreach ($tradeLog as $k => $v) {
-                    $data['tradelog'][$k]['addtime'] = date('m-d H:i:s', $v['addtime']);
+                    $data['tradelog'][$k]['addtime'] = date('H:i:s', $v['addtime']);
                     $data['tradelog'][$k]['type'] = $v['type'];
                     $data['tradelog'][$k]['price'] = $v['price'];
                     $data['tradelog'][$k]['num'] = round($v['num'], 6);
@@ -250,39 +250,6 @@ class Data
             }
         }
         $return['tradelog'] = $data;
-
-        $name = strtolower($name);
-        $tables = $model->setTable('market', true)->aliase('l1')->fields('l1.name,l1.change')
-            ->join('front_menu', 'l2', ['l1.menu', '=', 'l2.id'])
-            ->where('l2.parent=' . $menu_id . ' AND l1.name LIKE \'%_' . $name . '\' AND l1.status=\'1\'')->select();
-        $lists = [];
-        foreach ($tables as $value) {
-            $table = 'trade_log' . $value['name'];
-            /**
-             * dengkaiyang 2018-08-15
-             * start
-             */
-            $tmp = $model->setTable($table, true)->fields('price as per1')
-                ->order("endtime desc,addtime desc,id desc")->find();
-            $tmp['p'] = $value['change'];
-            /**
-             * dengkaiyang
-             * end
-             */
-            $tmp['coin'] = strtoupper(explode('_', $value['name'])[0]);
-            $rmb = changeToRMB($value['name'], $tmp['per1']);
-            if ($rmb <= 0) {
-                $rmb = '0.00';
-            }
-            $tmp['per1_rmb'] = $rmb;
-            $lists[] = $tmp;
-        }
-        $tmp = [];
-        foreach ($lists as $key => $value) {
-            $tmp[$key] = $value['coin'];
-        }
-        array_multisort($tmp, SORT_ASC, $lists);
-        $return['zonedata'] = $lists;
 
         $data = $this->redis->get('getJsonTop' . $market);
         if (!$data) {
@@ -318,5 +285,42 @@ class Data
         $return['topLine'] = $data;
 
         return $return;
+    }
+
+    public function getZoneBlock($coin, $menu_id)
+    {
+        $model = new HiioneModel();
+        $name = strtolower($coin);
+        $tables = $model->setTable('market', true)->aliase('market', 'l1')->fields('l1.name,l1.change')
+            ->join('front_menu', 'l2', ['l1.menu_id', '=', 'l2.id'])
+            ->where(['l2.parent' => $menu_id, 'l1.name' => ['like', '%_' . $name], 'l1.status' => '1'])->select();
+        $lists = [];
+        foreach ($tables as $value) {
+            $table = 'trade_log' . $value['name'];
+            /**
+             * dengkaiyang 2018-08-15
+             * start
+             */
+            $tmp = $model->setTable($table, true)->fields('price as per1')
+                ->order("endtime desc,addtime desc,id desc")->find();
+            $tmp['p'] = $value['change'];
+            /**
+             * dengkaiyang
+             * end
+             */
+            $tmp['coin'] = strtoupper(explode('_', $value['name'])[0]);
+            $rmb = changeToRMB($value['name'], $tmp['per1']);
+            if ($rmb <= 0) {
+                $rmb = '0.00';
+            }
+            $tmp['per1_rmb'] = $rmb;
+            $lists[] = $tmp;
+        }
+        $tmp = [];
+        foreach ($lists as $key => $value) {
+            $tmp[$key] = $value['coin'];
+        }
+        array_multisort($tmp, SORT_ASC, $lists);
+        return $lists;
     }
 }

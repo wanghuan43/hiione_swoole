@@ -63,7 +63,7 @@ class Mysql
         return $this;
     }
 
-    public function where(array $conditions)
+    public function where($conditions)
     {
         $tmp = $this->createWhere($conditions);
         foreach ($tmp as $val) {
@@ -169,7 +169,7 @@ class Mysql
             }
             $sql .= implode(",", $table) . " ";
             if (count($this->pre_sql['join']) > 0) {
-                $sql .= implode(" ", $this->pre_sql['join']);
+                $sql .= implode(" ", $this->pre_sql['join']) . " ";
             }
             if (count($this->pre_sql['where']) > 0) {
                 $sql .= "WHERE " . implode(' AND ', $this->pre_sql['where']) . " ";
@@ -281,26 +281,33 @@ class Mysql
     private function createWhere($where)
     {
         $r = [];
-        foreach ($where as $key => $value) {
-            if (is_array($value)) {
-                switch (strtolower($value[0])) {
-                    case 'between':
-                        $where = "`$key` " . $value[0] . " '" . implode("' AND '", $value[1]) . "'";
-                        break;
-                    case 'neq':
-                    case '<>':
-                        $where = "`$key` <> '" . $value[1] . "'";
-                        break;
-                    case '>=':
-                        $where = "`$key` >= '" . $value[1] . "'";
-                        break;
-                    default:
-                        $where = "`$key`" . $value[0] . "'" . $value[1] . "'";
-                        break;
+        if (is_array($where)) {
+            foreach ($where as $key => $value) {
+                if (is_array($value)) {
+                    switch (strtolower($value[0])) {
+                        case 'between':
+                            $where = "$key " . $value[0] . " '" . implode("' AND '", $value[1]) . "'";
+                            break;
+                        case 'like':
+                            $where = "$key LIKE '" . $value[1] . "'";
+                            break;
+                        case '>=':
+                            $where = "$key >= '" . $value[1] . "'";
+                            break;
+                        case 'neq':
+                        case '<>':
+                            $where = "$key <> '" . $value[1] . "'";
+                            break;
+                        default:
+                            $where = "$key" . $value[0] . "'" . $value[1] . "'";
+                            break;
+                    }
+                } else {
+                    $where = "$key='" . $value . "'";
                 }
-            } else {
-                $where = "`$key`='" . $value . "'";
+                $r[] = $where;
             }
+        } else {
             $r[] = $where;
         }
         return $r;

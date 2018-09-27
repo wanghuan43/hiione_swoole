@@ -21,7 +21,7 @@ class HiioneServer
     protected static $init = [];
     protected $redis;
     private $inableType = ['init'];
-    private $inableBlock = ['index_block', 'trade_block', 'match_block', 'kline_block'];
+    private $inableBlock = ['index_block', 'trade_block', 'match_block', 'kline_block', 'zone_block'];
     protected static $_instance;
 
     public function __construct($config, $host, $port, $redis)
@@ -137,23 +137,32 @@ class HiioneServer
                 $data = new Data($this->redis);
                 switch ($message['block']) {
                     case 'index_block':
+                        MyLog::setLogLine('进入index_block');
                         $return = $data->getIndexBlock($message['ids'], $message['uuu']);
+                        MyLog::setLogLine('结束index_block');
                         break;
                     case 'trade_block':
-                        $return = $data->getTradeBlock($message['market'], $message['uuu']);
+                        MyLog::setLogLine('进入trade_block');
+                        $return = $data->getTradeBlock($message['market'], $message['uuu'], $message['coin'], $message['menu_id']);
+                        MyLog::setLogLine('结束trade_block');
                         break;
                     case 'match_block':
                         MyLog::setLogLine('进入撮合');
                         $hm = new HiioneMatch($message['market'], $message['tradeType'], $this->redis);
                         $return = $hm->matchTrade();
-                        MyLog::setLogLine(json_encode($return));
+                        MyLog::setLogLine('结束撮合' . json_encode($return));
                         break;
                     case 'kline_block':
-                        MyLog::setLogLine('进入撮合');
+                        MyLog::setLogLine('进入KLINE');
                         $message['since'] = isset($message['since']) ? round($message['since'] / 1000) : time();
                         $hm = new Kline($this->redis, $message['symbol'], $message['times'], $message['size'], $message['since']);
                         $return = $hm->getKline();
-                        MyLog::setLogLine(json_encode($return));
+                        MyLog::setLogLine('结束KLINE' . json_encode($return));
+                        break;
+                    case 'zone_block':
+                        MyLog::setLogLine('进入zone_block');
+                        $return = $data->getZoneBlock($message['coin'], $message['menu_id']);
+                        MyLog::setLogLine('结束zone_block' . json_encode($return));
                         break;
                     default:
                         throw new HiioneException('非法访问,我们会关闭此次链接6', 404);
