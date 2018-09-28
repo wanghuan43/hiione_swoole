@@ -138,7 +138,10 @@ class HiioneServer
                 switch ($message['block']) {
                     case 'index_block':
                         MyLog::setLogLine('进入index_block');
-                        $return = $data->getIndexBlock($message['ids'], $message['uuu']);
+                        $message['ids'] = isset($message['ids']) ? $message['ids'] : [];
+                        $message['uuu'] = isset($message['uuu']) ? $message['uuu'] : '';
+                        $message['from'] = isset($message['from']) ? $message['from'] : 'pc';
+                        $return = $data->getIndexBlock($message['from'], $message['ids'], $message['uuu']);
                         MyLog::setLogLine('结束index_block');
                         break;
                     case 'trade_block':

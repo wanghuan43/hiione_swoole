@@ -20,7 +20,7 @@ class Data
         $this->redis = $redis;
     }
 
-    public function getIndexBlock($ids, $uid)
+    public function getIndexBlock($from, $ids = [], $uid = '')
     {
         $marketModel = new Market();
         $marketModel->setTable('market', true);
@@ -146,7 +146,7 @@ class Data
                 break;
             }
         }
-        $num = $this->redis->get('dig' . date('Ymd') . $tt);
+        $num = $this->redis->get('dig' . date('Ymd') . $tt, false);
         if (!$num) {
             $num = $tv;
         }
@@ -192,6 +192,9 @@ class Data
             $return['indexDiv']['hit_min'] = 0;
             $return['indexDiv']['hit_max'] = 0;
         } else {
+            if (!empty($uid)) {
+                $return['indexDiv']['my_poundage'] = (isset($users[$uid]) ? $users[$uid] : 0);
+            }
             $tun = count($users) * ($trade_manager['trade_total'] / 100);
             if ($tun < 1) {
                 $tun = 1;
@@ -202,8 +205,23 @@ class Data
             $return['indexDiv']['hit_min'] = (min($a) ? min($a) : 0);
             $return['indexDiv']['hit_max'] = (max($a) ? max($a) : 0);
         }
-        if (!empty($uid)) {
-            $return['indexDiv']['my_poundage'] = (isset($users[$uid]) ? $users[$uid] : 0);
+        if ($from == 'app-ar') {
+            $return = $return['indexDiv'];
+            $return['trade_total'] = $trade_manager['trade_total'];
+            $return['trade_per'] = $trade_manager['trade_per'];
+            $return['prev_data'] = $this->redis->get('index_prev');
+            $return['index_now'] = $this->redis->get('index_now');
+            $list = $model->setTable('market', true)->fields('name,new_price')
+                ->where(['menu_id' => 26, 'status' => '1', 'trade' => '1'])->order('sort ASC,id DESC')->select();
+            foreach ($list as $key => $value) {
+                if ($value['name'] == 'usdt_hcny') {
+                    $value['new_price'] = $this->redis->get('usdtormb');
+                }
+                $value['new_price_rmb'] = $value['new_price'];
+                $value['name'] = join("_", array_reverse(explode('_', $value['name'])));
+                $list[$key] = $value;
+            }
+            $return['lists'] = $list;
         }
         return $return;
     }
