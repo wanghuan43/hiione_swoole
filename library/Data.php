@@ -207,7 +207,6 @@ class Data
         }
         if ($from == 'app-ar') {
             $return = $return['indexDiv'];
-            $return['block'] = 'index_block';
             $return['time'] = $time;
             $return['trade_total'] = $trade_manager['trade_total'];
             $return['trade_per'] = $trade_manager['trade_per'];
