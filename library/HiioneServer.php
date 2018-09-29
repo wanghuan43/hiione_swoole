@@ -131,6 +131,7 @@ class HiioneServer
                         throw new HiioneException('非法访问,我们会关闭此次链接4', 404);
                         break;
                 }
+                self::$block = $message['type'];
             } elseif (!empty($message['block'])) {
                 if (!in_array($message['block'], $this->inableBlock)) {
                     throw new HiioneException('非法访问,我们会关闭此次链接5', 404);
