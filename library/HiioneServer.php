@@ -23,6 +23,7 @@ class HiioneServer
     private $inableType = ['init'];
     private $inableBlock = ['index_block', 'trade_block', 'match_block', 'kline_block', 'zone_block'];
     protected static $_instance;
+    protected static $block = 'init';
 
     public function __construct($config, $host, $port, $redis)
     {
@@ -60,7 +61,7 @@ class HiioneServer
 
     public function sendMessage($status = 200, $message = '', $fd = '')
     {
-        $content = json_encode(['status' => $status, 'content' => $message], JSON_UNESCAPED_UNICODE);
+        $content = json_encode(['status' => $status, 'content' => $message, 'block' => self::$block], JSON_UNESCAPED_UNICODE);
         MyLog::setLogLine(date('Y-m-d H:i:s', time()) . ":sendmessage:" . $content);
         if (empty($fd)) {
             foreach ($this->frame as $key => $value) {
@@ -134,6 +135,7 @@ class HiioneServer
                 if (!in_array($message['block'], $this->inableBlock)) {
                     throw new HiioneException('非法访问,我们会关闭此次链接5', 404);
                 }
+                self::$block = $message['block'];
                 $data = new Data($this->redis);
                 switch ($message['block']) {
                     case 'index_block':
