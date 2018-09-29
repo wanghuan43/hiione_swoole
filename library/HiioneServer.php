@@ -141,6 +141,7 @@ class HiioneServer
                         $message['ids'] = isset($message['ids']) ? $message['ids'] : [];
                         $message['uuu'] = isset($message['uuu']) ? $message['uuu'] : '';
                         $message['from'] = isset($message['from']) ? $message['from'] : 'pc';
+                        $message['time'] = isset($message['time']) ? $message['time'] : '';
                         $return = $data->getIndexBlock($message['from'], $message['ids'], $message['uuu'], $message['time']);
                         MyLog::setLogLine('结束index_block');
                         break;
