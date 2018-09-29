@@ -20,7 +20,7 @@ class Data
         $this->redis = $redis;
     }
 
-    public function getIndexBlock($from, $ids = [], $uid = '')
+    public function getIndexBlock($from, $ids = [], $uid = '', $time = '')
     {
         $marketModel = new Market();
         $marketModel->setTable('market', true);
@@ -207,9 +207,11 @@ class Data
         }
         if ($from == 'app-ar') {
             $return = $return['indexDiv'];
+            $return['block'] = 'index_block';
+            $return['time'] = $time;
             $return['trade_total'] = $trade_manager['trade_total'];
             $return['trade_per'] = $trade_manager['trade_per'];
-            $return['prev_data'] = $this->redis->get('index_prev');
+            $return['prev_data'] = $this->redis->get('index_prev')['prev_data'];
             $return['index_now'] = $this->redis->get('index_now');
             $list = $model->setTable('market', true)->fields('name,new_price')
                 ->where(['menu_id' => 26, 'status' => '1', 'trade' => '1'])->order('sort ASC,id DESC')->select();
