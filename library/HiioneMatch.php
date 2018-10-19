@@ -89,7 +89,7 @@ class HiioneMatch
                 MyLog::setLogLine('twoUt:' . json_encode($twoUt));
 
                 if ($one['price'] < $two['price']) {
-                    throw new HiioneException('价格不匹配,程序结束', '100');
+                    throw new HiioneException('价格不匹配,程序结束；买入价格：' . $one['price'] . ' | 卖出价格：' . $two['price'], '100');
                 }
                 if ($one['num'] == $one['deal']) {
                     throw new HiioneException($one['id'], '400');
@@ -131,6 +131,14 @@ class HiioneMatch
                 $sell_fee = round($mum * $this->marketInfo['fee_sell'], $this->marketInfo['round']);
                 $buy_total = round($mum + $buy_fee, $this->marketInfo['round']);
                 $sell_total = round($mum - $sell_fee, $this->marketInfo['round']);
+                if ($buy_total <= 0) {
+                    MyLog::setLogLine("买入总金额异常:实际" . $buy_total);
+                    throw new HiioneException($one['id'], '200');
+                }
+                if ($sell_total <= 0) {
+                    MyLog::setLogLine("卖出总金额异常:实际" . $sell_total);
+                    throw new HiioneException($two['id'], '200');
+                }
                 if ($oneU[$this->coin2 . 'd'] < $buy_total) {
                     MyLog::setLogLine('买家-冻结不够:' . $oneU[$this->coin2 . 'd'] . ":实际" . $buy_total);
                     throw new HiioneException($one['id'], '200');
