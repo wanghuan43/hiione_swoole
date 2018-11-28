@@ -21,9 +21,8 @@ class HiioneServer
     protected static $init = [];
     protected $redis;
     private $inableType = ['init'];
-    private $inableBlock = ['index_block', 'trade_block', 'match_block', 'kline_block', 'zone_block'];
+    private $inableBlock = ['index_block', 'trade_block'];
     protected static $_instance;
-    protected static $block = 'init';
 
     public function __construct($config, $host, $port, $redis)
     {
@@ -55,13 +54,12 @@ class HiioneServer
 
     public function onClose($server, $fd)
     {
-        MyLog::setLogLine(date('Y-m-d H:i:s', time()) . "onClose:frame:" . $fd);
         $this->delFrame($fd);
     }
 
     public function sendMessage($status = 200, $message = '', $fd = '')
     {
-        $content = json_encode(['status' => $status, 'content' => $message, 'block' => self::$block], JSON_UNESCAPED_UNICODE);
+        $content = json_encode(['status' => $status, 'content' => $message], JSON_UNESCAPED_UNICODE);
         MyLog::setLogLine(date('Y-m-d H:i:s', time()) . ":sendmessage:" . $content);
         if (empty($fd)) {
             foreach ($this->frame as $key => $value) {
@@ -77,7 +75,7 @@ class HiioneServer
         $this->server->start();
     }
 
-    public function setFrame($fd, $sessionid = '')
+    public function setFrame($fd, $block, $sessionid = '')
     {
         if (!isset($this->frame[$fd])) {
             $this->frame[$fd] = $fd;
@@ -108,16 +106,16 @@ class HiioneServer
     {
         try {
             if (empty($frame->data)) {
-                throw new HiioneException('非法访问,我们会关闭此次链接1', 404);
+                throw new HiioneException('非法访问,我们会关闭此次链接', 404);
             } else {
                 $message = json_decode($frame->data, true);
             }
             if (empty($message['type']) && empty($message['block'])) {
-                throw new HiioneException('非法访问,我们会关闭此次链接2', 404);
+                throw new HiioneException('非法访问,我们会关闭此次链接', 404);
             }
             if (!empty($message['type'])) {
                 if (!in_array($message['type'], $this->inableType)) {
-                    throw new HiioneException('非法访问,我们会关闭此次链接3', 404);
+                    throw new HiioneException('非法访问,我们会关闭此次链接', 404);
                 }
                 switch ($message['type']) {
                     case 'init':
@@ -128,51 +126,28 @@ class HiioneServer
                         $this->setFrame($frame->fd, $message['sessionid']);
                         break;
                     default:
-                        throw new HiioneException('非法访问,我们会关闭此次链接4', 404);
+                        throw new HiioneException('非法访问,我们会关闭此次链接', 404);
                         break;
                 }
-                self::$block = $message['type'];
             } elseif (!empty($message['block'])) {
                 if (!in_array($message['block'], $this->inableBlock)) {
-                    throw new HiioneException('非法访问,我们会关闭此次链接5', 404);
+                    throw new HiioneException('非法访问,我们会关闭此次链接', 404);
                 }
-                self::$block = $message['block'];
                 $data = new Data($this->redis);
                 switch ($message['block']) {
                     case 'index_block':
-                        MyLog::setLogLine('进入index_block');
-                        $message['ids'] = isset($message['ids']) ? $message['ids'] : [];
-                        $message['uuu'] = isset($message['uuu']) ? $message['uuu'] : '';
-                        $message['from'] = isset($message['from']) ? $message['from'] : 'pc';
-                        $message['time'] = isset($message['time']) ? $message['time'] : '';
-                        $return = $data->getIndexBlock($message['from'], $message['ids'], $message['uuu'], $message['time']);
-                        MyLog::setLogLine('结束index_block');
+                        $return = $data->getIndexBlock($message['ids']);
                         break;
                     case 'trade_block':
-                        MyLog::setLogLine('进入trade_block');
-                        $return = $data->getTradeBlock($message['market'], $message['uuu'], $message['coin'], $message['menu_id']);
-                        MyLog::setLogLine('结束trade_block');
+                        $return = $data->getTradeBlock();
                         break;
                     case 'match_block':
-                        MyLog::setLogLine('进入撮合');
+                        require('./HiioneMatch.php');
                         $hm = new HiioneMatch($message['market'], $message['tradeType'], $this->redis);
                         $return = $hm->matchTrade();
-                        MyLog::setLogLine('结束撮合' . json_encode($return));
-                        break;
-                    case 'kline_block':
-                        MyLog::setLogLine('进入KLINE');
-                        $message['since'] = isset($message['since']) ? round($message['since'] / 1000) : time();
-                        $hm = new Kline($this->redis, $message['symbol'], $message['times'], $message['size'], $message['since']);
-                        $return = $hm->getKline();
-                        MyLog::setLogLine('结束KLINE' . json_encode($return));
-                        break;
-                    case 'zone_block':
-                        MyLog::setLogLine('进入zone_block');
-                        $return = $data->getZoneBlock($message['coin'], $message['menu_id']);
-                        MyLog::setLogLine('结束zone_block' . json_encode($return));
                         break;
                     default:
-                        throw new HiioneException('非法访问,我们会关闭此次链接6', 404);
+                        throw new HiioneException('非法访问,我们会关闭此次链接', 404);
                         break;
                 }
                 $this->sendMessage(200, $return, $frame->fd);

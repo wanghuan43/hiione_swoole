@@ -23,15 +23,12 @@ class Mysql
     ];
     protected static $prefix;
     protected $query;
-    protected $sql;
-    public static $config;
 
     public static function init($config)
     {
         $dsn = "mysql:host=" . $config['hostname'] . ";dbname=" . $config['database'] . ";port=" . $config['hostport'];
         self::$db = new \PDO($dsn, $config['username'], $config['password'], array(\PDO::MYSQL_ATTR_INIT_COMMAND => "set names utf8"));
         self::$prefix = $config['prefix'];
-        self::$config = $config;
     }
 
     public function beginTransaction()
@@ -63,12 +60,9 @@ class Mysql
         return $this;
     }
 
-    public function where($conditions)
+    public function where(array $conditions)
     {
-        $tmp = $this->createWhere($conditions);
-        foreach ($tmp as $val) {
-            $this->pre_sql['where'][] = $val;
-        }
+        array_merge($this->pre_sql['where'], $this->createWhere($conditions));
         return $this;
     }
 
@@ -92,7 +86,10 @@ class Mysql
 
     public function aliase($table, $alias)
     {
-        $this->pre_sql['table'][$table] = [self::$prefix . $table, $alias];
+        if (!isset($this->pre_sql['table'][$table])) {
+            $this->setTable($table);
+        }
+        array_push($this->pre_sql['table'][$table], $alias);
         return $this;
     }
 
@@ -105,7 +102,7 @@ class Mysql
     public function join($table, $aliase, $data, $op = 'LEFT')
     {
         $table = self::$prefix . $table;
-        $this->pre_sql['join'][] = $op . " JOIN " . $table . " AS " . $aliase . " ON " . $data[0] . $data[1] . $data[2];
+        $this->pre_sql['join'][] = $op . " JOIN " . $table . " AS " . $aliase . " ON " . $aliase . "." . $data[0] . $data[1] . $data[2];
         return $this;
     }
 
@@ -118,31 +115,21 @@ class Mysql
         return $this->query;
     }
 
-    public function find($sql = '')
+    public function find()
     {
         $this->limit(1);
-        $query = $this->query($sql);
-        if ($query) {
-            return $query->fetch(\PDO::FETCH_ASSOC);
-        } else {
-            return false;
-        }
+        return $this->query()->fetch(\PDO::FETCH_ASSOC);
     }
 
-    public function select($sql = '')
+    public function select()
     {
-        $query = $this->query($sql);
-        if ($query) {
-            return $query->fetchAll(\PDO::FETCH_ASSOC);
-        } else {
-            return [];
-        }
+        return $this->query()->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function sum($filed)
     {
-        $tmp = $this->fields('SUM(`' . $filed . '`) AS ' . $filed)->find();
-        return $tmp[$filed];
+        $tmp = $this->fields('SUM(`' . $filed . '`) AS sumC')->find();
+        return $tmp['sumC'];
     }
 
     public function createSql($sql = NULL)
@@ -169,10 +156,10 @@ class Mysql
             }
             $sql .= implode(",", $table) . " ";
             if (count($this->pre_sql['join']) > 0) {
-                $sql .= implode(" ", $this->pre_sql['join']) . " ";
+                $sql .= implode(" ", $this->pre_sql['join']);
             }
             if (count($this->pre_sql['where']) > 0) {
-                $sql .= "WHERE " . implode(' AND ', $this->pre_sql['where']) . " ";
+                $sql .= "WHERE " . implode('and', $this->pre_sql['where']) . " ";
             }
             if (count($this->pre_sql['group']) > 0) {
                 $sql .= "GROUP BY " . implode(',', $this->pre_sql['group']) . " ";
@@ -187,15 +174,13 @@ class Mysql
                 $sql .= "FOR UPDATE";
             }
         }
-        $this->sql = $sql;
-        MyLog::setLogLine("查询:" . $sql);
         $this->cleanSql();
         return $sql;
     }
 
     public function getLastSql()
     {
-        return $this->sql;
+        return $this->createSql();
     }
 
     public function lock()
@@ -208,7 +193,6 @@ class Mysql
     {
         $sql = $this->createExecSql($data, $isUpdate);
         $num = self::$db->exec($sql);
-        MyLog::setLogLine('写入结果:' . $num);
         if (!$isUpdate && !$batch) {
             return self::$db->lastInsertId();
         }
@@ -217,12 +201,12 @@ class Mysql
 
     public function setInc($field, $num = 1)
     {
-        return $this->save([$field => [$field, '+', $num]], true);
+        return $this->save([$field => [$field, '+', $num]]);
     }
 
     public function setSub($field, $num = 1)
     {
-        return $this->save([$field => [$field, '-', $num]], true);
+        return $this->save([$field => [$field, '-', $num]]);
     }
 
     public function getLastId()
@@ -230,11 +214,10 @@ class Mysql
         return self::$db->lastInsertId();
     }
 
-    protected function createExecSql($data, $isUpdate, $batch = false)
+    protected function createExecSql($data, $isUpdate, $batch)
     {
-        $table = reset($this->pre_sql['table']);
         if (!$isUpdate) {
-            $sql = "INSERT INTO " . $table;
+            $sql = "INSERT INTO " . $this->pre_sql['table'][0];
             $keys = array_keys($data);
             $values = array_values($data);
             $sql .= "(`" . implode("`,`", $keys) . "`)";
@@ -244,7 +227,7 @@ class Mysql
                 $sql .= " VALUE('" . implode("','", $values) . "')";
             }
         } else {
-            $sql = "UPDATE " . $table . " SET ";
+            $sql = "UPDATE " . $this->pre_sql['table'][0] . " SET ";
             $sets = [];
             foreach ($data as $key => $value) {
                 if (is_array($value)) {
@@ -258,8 +241,6 @@ class Mysql
                 $sql .= " WHERE " . implode('and', $this->pre_sql['where']);
             }
         }
-        $this->sql = $sql;
-        MyLog::setLogLine("写入:" . $sql);
         $this->cleanSql();
         return $sql;
     }
@@ -267,7 +248,6 @@ class Mysql
     protected function cleanSql()
     {
         $this->pre_sql = [
-            'table' => $this->pre_sql['table'],
             'fields' => '',
             'where' => [],
             'join' => [],
@@ -281,33 +261,19 @@ class Mysql
     private function createWhere($where)
     {
         $r = [];
-        if (is_array($where)) {
-            foreach ($where as $key => $value) {
-                if (is_array($value)) {
-                    switch (strtolower($value[0])) {
-                        case 'between':
-                            $where = "$key " . $value[0] . " '" . implode("' AND '", $value[1]) . "'";
-                            break;
-                        case 'like':
-                            $where = "$key LIKE '" . $value[1] . "'";
-                            break;
-                        case '>=':
-                            $where = "$key >= '" . $value[1] . "'";
-                            break;
-                        case 'neq':
-                        case '<>':
-                            $where = "$key <> '" . $value[1] . "'";
-                            break;
-                        default:
-                            $where = "$key" . $value[0] . "'" . $value[1] . "'";
-                            break;
-                    }
-                } else {
-                    $where = "$key='" . $value . "'";
+        foreach ($where as $key => $value) {
+            if (is_array($value)) {
+                switch (strtolower($value[0])) {
+                    case 'between':
+                        $where = "`$key` " . $value[0] . " '" . implode("' AND '", $value[1]) . "'";
+                        break;
+                    default:
+                        $where = "`$key`" . $value[0] . "'" . $value[1] . "'";
+                        break;
                 }
-                $r[] = $where;
+            } else {
+                $where = "`$key`='" . $value . "'";
             }
-        } else {
             $r[] = $where;
         }
         return $r;

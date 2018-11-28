@@ -8,8 +8,6 @@
 
 namespace hiione;
 
-date_default_timezone_set('PRC');
-
 require './library/HiioneException.php';
 require './library/MyLog.php';
 require './library/MyRedis.php';
@@ -17,12 +15,7 @@ require './library/Mysql.php';
 require './library/Data.php';
 require './library/HiioneServer.php';
 require './library/HiioneModel.php';
-require('./library/HiioneMatch.php');
 require './model/Market.php';
-require './model/Trade.php';
-require './model/UserCoin.php';
-require './model/TradeLog.php';
-require './library/Kline.php';
 
 use hiione\library\MyLog;
 use hiione\library\MyRedis;

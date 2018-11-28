@@ -47,49 +47,23 @@ class HiioneMatch
 
     public function matchTrade()
     {
-        $t1 = microtime(true);
         $model = new HiioneModel();
         $i = 1;
         while (true) {
             try {
                 $model->beginTransaction();
-
-                $oneT = $this->tradeModel->fields('id')->where(['status' => 0, 'type' => '1'])
-                    ->order("price DESC,id ASC")->find();
-                MyLog::setLogLine('oneT:' . json_encode($oneT));
-                $twoT = $this->tradeModel->fields('id')->where(['status' => 0, 'type' => '2'])
-                    ->order("price ASC,id ASC")->find();
-                MyLog::setLogLine('twoT:' . json_encode($twoT));
-
-                if (!$oneT || !$twoT) {
-                    throw new HiioneException('', '100');
-                }
-
-                $one = $this->tradeModel->where(['id' => $oneT['id']])
+                $one = $this->tradeModel->where(['status' => 0, 'type' => '1'])
                     ->order("price DESC,id ASC")->lock()->find();
-                MyLog::setLogLine('one:' . json_encode($one));
-                $two = $this->tradeModel->where(['id' => $twoT['id']])
+                $two = $this->tradeModel->where(['status' => 0, 'type' => '2'])
                     ->order("price ASC,id ASC")->lock()->find();
-                MyLog::setLogLine('two:' . json_encode($two));
-
-                if (!$one || !$two) {
-                    throw new HiioneException('', '100');
-                }
                 $oneU = $this->userCoinModel->setTable('user_coin' . $this->coin2, true)->where(['userid' => $one['userid']])
                     ->lock()->find();
-                MyLog::setLogLine('oneU:' . json_encode($oneU));
                 $oneUt = $this->userCoinModel->setTable('user_coin' . $this->coin1, true)->where(['userid' => $one['userid']])
                     ->lock()->find();
-                MyLog::setLogLine('oneUt:' . json_encode($oneUt));
-                $twoU = $this->userCoinModel->setTable('user_coin' . $this->coin1, true)->where(['userid' => $two['userid']])
+                $twoU = $this->userCoinModel->setTable('user_coin' . $this->coin1, true)->where(['userid' => $one['userid']])
                     ->lock()->find();
-                MyLog::setLogLine('twoU:' . json_encode($twoU));
-                $twoUt = $this->userCoinModel->setTable('user_coin' . $this->coin2, true)->where(['userid' => $two['userid']])
-                    ->lock()->find();
-                MyLog::setLogLine('twoUt:' . json_encode($twoUt));
-
                 if ($one['price'] < $two['price']) {
-                    throw new HiioneException('价格不匹配,程序结束；买入价格：' . $one['price'] . ' | 卖出价格：' . $two['price'], '100');
+                    throw new HiioneException('价格不匹配,程序结束', '100');
                 }
                 if ($one['num'] == $one['deal']) {
                     throw new HiioneException($one['id'], '400');
@@ -98,9 +72,7 @@ class HiioneMatch
                     throw new HiioneException($two['id'], '400');
                 }
                 $do = round($one['num'] - $one['deal'], $this->marketInfo['round']);
-                MyLog::setLogLine('do:' . $do);
                 $dt = round($two['num'] - $two['deal'], $this->marketInfo['round']);
-                MyLog::setLogLine('dt:' . $dt);
                 if ($do == 0) {
                     throw new HiioneException($one['id'], '400');
                 }
@@ -115,44 +87,27 @@ class HiioneMatch
                 }
                 if ($one['id'] < $two['id']) {
                     $tl = $one['type'];
+                    $price = $one['price'];
                 } else {
                     $tl = $two['type'];
+                    $price = $two['price'];
                 }
-                if ($i == 1 && $one['price'] < $two['price']) {
-                    throw new HiioneException('', '100');
-                }
-                $price = ($tl == '1' ? $one['price'] : $two['price']);
                 $num = ($do > $dt ? $dt : $do);
-                if ($num <= 0) {
-                    throw new HiioneException(['buy' => $one['id'], 'sell' => $two['id']], '200');
-                }
                 $mum = round($price * $num, $this->marketInfo['round']);
                 $buy_fee = round($mum * $this->marketInfo['fee_buy'], $this->marketInfo['round']);
                 $sell_fee = round($mum * $this->marketInfo['fee_sell'], $this->marketInfo['round']);
                 $buy_total = round($mum + $buy_fee, $this->marketInfo['round']);
                 $sell_total = round($mum - $sell_fee, $this->marketInfo['round']);
-                if ($buy_total <= 0) {
-                    MyLog::setLogLine("买入总金额异常:实际" . $buy_total);
-                    throw new HiioneException($one['id'], '200');
-                }
-                if ($sell_total <= 0) {
-                    MyLog::setLogLine("卖出总金额异常:实际" . $sell_total);
-                    throw new HiioneException($two['id'], '200');
-                }
                 if ($oneU[$this->coin2 . 'd'] < $buy_total) {
-                    MyLog::setLogLine('买家-冻结不够:' . $oneU[$this->coin2 . 'd'] . ":实际" . $buy_total);
                     throw new HiioneException($one['id'], '200');
                 }
                 if ($twoU[$this->coin1 . 'd'] < $num) {
-                    MyLog::setLogLine('卖家-冻结不够:' . $twoU[$this->coin1 . 'd'] . ":实际" . $num);
                     throw new HiioneException($two['id'], '200');
                 }
-                if ($one['num'] < $do) {
-                    MyLog::setLogLine('买家-数量异常:' . $do . ":实际" . $one['num']);
+                if ($one['num'] < ($do + $num)) {
                     throw new HiioneException($one['id'], '200');
                 }
-                if ($two['num'] < $dt) {
-                    MyLog::setLogLine('卖家-数量异常:' . $dt . ":实际" . $two['num']);
+                if ($two['num'] < ($dt + $num)) {
                     throw new HiioneException($two['id'], '200');
                 }
                 $rs[] = $this->tradeLogModel->save([
@@ -171,13 +126,20 @@ class HiioneMatch
                 $rs[] = $this->tradeModel->where(['id' => $one['id']])->setInc('deal', $num);
                 $rs[] = $this->tradeModel->where(['id' => $two['id']])->setInc('deal', $num);
 
-                $rs[] = $this->userCoinModel->changeUserCoin($this->coin1, $this->coin1, $one['userid'], $num, 'INC');
-                $rs[] = $this->userCoinModel->changeUserCoin($this->coin2, $this->coin2, $two['userid'], $sell_total, 'INC');
+                $rs[] = $this->tradeModel->where(['id' => $one['id']])->save(['status' => '1'], true);
+                $rs[] = $this->tradeModel->where(['id' => $two['id']])->save(['status' => '1'], true);
 
-                $rs[] = $this->userCoinModel->changeUserCoin($this->coin2, $this->coin2 . "d", $one['userid'], $buy_total, 'SUB');
-                $rs[] = $this->userCoinModel->changeUserCoin($this->coin1, $this->coin1 . "d", $two['userid'], $num, 'SUB');
+                $this->userCoinModel->setTable('user_coin' . $this->coin1, true);
+                $rs[] = $this->userCoinModel->where(['userid' => $one['userid']])->setInc($this->coin1, $num);
+                $this->userCoinModel->setTable('user_coin' . $this->coin2, true);
+                $rs[] = $this->userCoinModel->where(['userid' => $one['userid']])->setSub($this->coin2 . "d", $buy_total);
 
-                $rs[] = $model->setTable('finance_' . $this->coin1, true)->save([
+                $this->userCoinModel->setTable('user_coin' . $this->coin1, true);
+                $rs[] = $this->userCoinModel->where(['userid' => $one['userid']])->setSub($this->coin1 . "d", $num);
+                $this->userCoinModel->setTable('user_coin' . $this->coin2, true);
+                $rs[] = $this->userCoinModel->where(['userid' => $one['userid']])->setInc($this->coin2, $sell_total);
+
+                $rs[] = $model->setTable('finance' . $this->coin1, true)->save([
                     'userid' => $one['userid'],
                     'coinname' => $this->coin1,
                     'num_a' => $oneUt[$this->coin1],
@@ -196,36 +158,29 @@ class HiioneMatch
                     'status' => 1
                 ]);
 
-                $rs[] = $model->setTable('finance_' . $this->coin2, true)->save([
+                $rs[] = $model->setTable('finance' . $this->coin2, true)->save([
                     'userid' => $two['userid'],
                     'coinname' => $this->coin2,
-                    'num_a' => $twoUt[$this->coin2],
-                    'num_b' => $twoUt[$this->coin2 . 'd'],
-                    'num' => round($twoUt[$this->coin2] + $twoUt[$this->coin2 . 'd'], $this->marketInfo['round']),
+                    'num_a' => $two[$this->coin2],
+                    'num_b' => $two[$this->coin2 . 'd'],
+                    'num' => round($two[$this->coin2] + $two[$this->coin2 . 'd'], $this->marketInfo['round']),
                     'fee' => $sell_fee,
                     'type' => 2,
                     'name' => 'tradelog',
                     'nameid' => $two['id'],
                     'remark' => '交易中心-成功卖出-市场' . $this->market,
-                    'mum_a' => round($twoUt[$this->coin2] + $sell_total, $this->marketInfo['round']),
-                    'mum_b' => $twoUt[$this->coin2 . 'd'],
-                    'mum' => round(round($twoUt[$this->coin2] + $sell_total, $this->marketInfo['round']) + $twoUt[$this->coin2 . 'd'], $this->marketInfo['round']),
+                    'mum_a' => round($two[$this->coin2] + $sell_total, $this->marketInfo['round']),
+                    'mum_b' => $two[$this->coin2 . 'd'],
+                    'mum' => round(round($two[$this->coin2] + $sell_total, $this->marketInfo['round']) + $two[$this->coin2 . 'd'], $this->marketInfo['round']),
                     'move' => getFinanceHash(),
                     'addtime' => time(),
                     'status' => 1
                 ]);
-                if (($num + $one['deal']) == $one['num']) {
-                    $this->tradeModel->where(['id' => $one['id']])->save(['status' => '1'], true);
-                }
-                if (($num + $two['deal']) == $two['num']) {
-                    $this->tradeModel->where(['id' => $two['id']])->save(['status' => '1'], true);
-                }
+
                 if (check_arr($rs)) {
-                    MyLog::setLogLine('撮合成功');
                     $model->commit();
-                    $this->addListTrade($this->market);
                     $this->tradedig($tl, $one, $two, $buy_fee, $sell_fee, $this->market);
-                    $this->redis->delCache([
+                    $this->redis->del([
                         'wkj_allcoin' . $this->marketInfo['menu_id'],
                         'marketjiaoyie24',
                         'marketappjiaoyi',
@@ -239,58 +194,41 @@ class HiioneMatch
                         'allcoin',
                         'trends',
                     ]);
-                    throw new HiioneException('', '900');
                 } else {
-                    MyLog::setLogLine('撮合失败');
                     throw new HiioneException('', '100');
                 }
             } catch (HiioneException $e) {
-                MyLog::setLogLine('异常:' . $e->getCode() . "(" . $e->getMessage() . ")");
-                if ($e->getCode() != '900') {
-                    $model->rollback();
-                }
+                $model->rollback();
                 if ($e->getCode() == '100') {
                     break;
                 }
                 switch ($e->getCode()) {
                     case "200":
-                        $this->tradeModel->where(['id' => $e->getMessage()])->save(['status' => '3'], true);
-                        MyLog::setLogLine('保存200:' . $this->tradeModel->getLastSql());
+                        $this->tradeModel->where(['id' => $e->getMessage()])->save(['status' => 3], true);
                         break;
                     case "400":
-                        $this->tradeModel->where(['id' => $e->getMessage()])->save(['status' => '1'], true);
-                        MyLog::setLogLine('保存400:' . $this->tradeModel->getLastSql());
+                        $this->tradeModel->where(['id' => $e->getMessage()])->save(['status' => 1], true);
                         break;
                 }
-//                if ($i >= 10) {
-//                    break;
-//                }
+            } finally {
                 $i++;
             }
         }
-        $t2 = microtime(true);
-        MyLog::setLogLine('执行次数:' . $i . ';运行时间:' . round($t2 - $t1, 8) . ';调用内存:' . convert(memory_get_usage()));
         return true;
     }
 
     private function tradedig($type, $buy, $sell, $buy_fee, $sell_fee, $market)
     {
-        MyLog::setLogLine('挖矿');
         $model = new HiioneModel();
         $times = time();
         $base = 60 * 60;
         $dig = $this->redis->get('trade_manager');
-        MyLog::setLogLine('trade_manager:' . json_encode($dig));
         $cm = $this->redis->get('manager');
-        MyLog::setLogLine('manager:' . json_encode($cm));
         $ex = $this->redis->get('extend');
-        MyLog::setLogLine('extend:' . json_encode($ex));
         if (empty($ex['trade'])) {
-            MyLog::setLogLine("错误1");
             return false;
         }
         if ($cm['trade_num'] <= 0) {
-            MyLog::setLogLine("错误2");
             return false;
         }
         $hour = intval(date('G', $times));
@@ -309,15 +247,12 @@ class HiioneMatch
             }
         }
         if (empty($tv)) {
-            MyLog::setLogLine("错误3");
             return false;
         }
         $left = $this->redis->get('dig' . date('Ymd') . $tt, false);
-        MyLog::setLogLine('dig' . date('Ymd') . $tt . ':' . json_encode($left));
-        if ($left === null) {
+        if ($left === false) {
             $left = $tv;
         } elseif ($left <= 0) {
-            MyLog::setLogLine("错误4");
             return false;
         }
         $fee = round(($type == 1 ? $buy_fee : $sell_fee) * ($dig['dig_per'] / 100), 8);
@@ -325,11 +260,9 @@ class HiioneMatch
         $tmp = explode("_", $market);
         $coin = $tmp[1];
         if ($coin == 'hit') {
-            MyLog::setLogLine("错误5");
             return false;
         }
         if ($tmp[0] == 'hit' && $type == 1) {
-            MyLog::setLogLine("错误6");
             return false;
         }
         $rates = $this->redis->get('rates');
@@ -342,8 +275,8 @@ class HiioneMatch
         if ($fee > $left) {
             $fee = $left;
         }
-        $tmp = $model->setTable('coin_slog', true)->fields('SUM(num) AS total')->where(['date' => ['BETWEEN', [$b, $e - 1]], 'userid' => $userid, 'type' => 10, 'user_per' => 0])->find();
-        $sum = (empty($tmp['total']) ? 0 : $tmp['total']);
+        $tmp = $model->setTable('coin_slog', true)->field('SUM(num) AS total')->where(['date' => ['BETWEEN', [$b, $e - 1]], 'userid' => $userid, 'type' => 10, 'user_per' => 0])->find();
+        $sum = $tmp['total'];
         $per = round($sum / $tv * 100, 2);
         $eve = round($tv * 0.01, 8);
         $lp = round($dig['dig_user'] - $per, 2);
@@ -353,23 +286,28 @@ class HiioneMatch
                 $fee = $t;
             }
         } else {
-            MyLog::setLogLine("错误7");
             return false;
         }
-        $this->userCoinModel->setTable('user_coinhit', true);
-        $q = $model->setTable('auto_trade', true)
-            ->fields('userid')->group('userid')->order('userid ASC')->select();
+        $uc = new UserCoin();
+        $uc->setTable('user_coinhit', true);
+        $q = $model->setTable('auto_trade', true)->aliase('auto_trade', 'a')
+            ->field('b.name,a.userid')->join('market', 'b', ['market', '=', 'b.id'])->select();
         $autoTrade = [];
         foreach ($q as $vv) {
-            $autoTrade[$vv['userid']] = $vv['userid'];
+            $autoTrade[$vv['userid']][$vv['name']] = $vv['name'];
         }
         if (array_key_exists($userid, $autoTrade)) {
             $userid = $ex['plat_user'];
         }
-        $this->userCoinModel->beginTransaction();
-        $update = $this->userCoinModel->changeUserCoin('hit', 'hit', $userid, $fee);
+        $uc->startTrans();
+        $sqlTMP = $uc->fields('COUNT(1) as c')->where(['userid' => $userid])->lock()->find();
+        if (!empty($sqlTMP['c'])) {
+            $update = $uc->where(['userid' => $userid])->setInc('hit', $fee);
+        } else {
+            $update = $uc->save(['userid' => $userid, 'hit' => $fee, 'hitd' => 0, 'hitb' => 0]);
+        }
         if ($update) {
-            $this->userCoinModel->commit();
+            $uc->commit();
             $left = round($left - $fee, 8);
             $this->redis->set('dig' . date('Ymd', $times) . $tt, $left, false);
             $model->setTable('coin_slog', true)->save([
@@ -389,40 +327,7 @@ class HiioneMatch
                 'coin' => '10',
             ]);
         } else {
-            $this->userCoinModel->rollback();
-        }
-    }
-
-    /****下单以后将订单加入到redis里面***********/
-    private function addListTrade($market)
-    {
-        $this->redis->set($market . 'LengthBuy', 10);
-        $this->redis->set($market . 'LengthSell', 10);
-        $db1 = new HiioneModel();
-        $db1->setTable(strtoupper('trade' . $market), true);
-        $buy_list = $db1->fields('price,sum(num) as num,sum(deal) as deal')->where(['type' => 1, 'status' => '0'])->group('price')->order('price DESC')->limit(10)->select();
-        $sell_list = $db1->fields('price,sum(num) as num,sum(deal) as deal')->where(['type' => 2, 'status' => '0'])->group('price')->order('price ASC')->limit(10)->select();
-        //$redis = $this->connectRedis();
-        $tmp_arr_buy = array();
-        $tmp_arr_sell = array();
-        $this->redis->del('trade_buy' . $market);
-        $this->redis->del('trade_sell' . $market);
-        if ($buy_list) {
-            foreach ($buy_list as $value) {
-                $tmp_arr_buy[] = [$value['price'], ($value['num'] - $value['deal']), round($value['price'] * ($value['num'] - $value['deal']), 8)];
-            }
-            $this->redis->lPush('trade_buy' . $market, json_encode($tmp_arr_buy));
-        }
-        if ($sell_list) {
-            foreach ($sell_list as $value) {
-                $tmp_arr_sell[] = [$value['price'], ($value['num'] - $value['deal']), round($value['price'] * ($value['num'] - $value['deal']), 8)];
-            }
-            $price = [];
-            foreach ($tmp_arr_sell as $key => $value) {
-                $price[$key] = $value[0];
-            }
-            array_multisort($price, SORT_DESC, $tmp_arr_sell);
-            $this->redis->lPush('trade_sell' . $market, json_encode($tmp_arr_sell));
+            $uc->rollback();
         }
     }
 }

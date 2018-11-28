@@ -5,12 +5,12 @@
  * Date: 2018/8/30
  * Time: 17:09
  */
-function changeToRMB($market, $value, $usdt = false)
+function changeToRMB($market, $value)
 {
     $value = sprintf("%1\$.8f", $value);
     $redis = \hiione\library\MyRedis::getInstance();
     $rates = $redis->get('rates');
-    $usdtormb = ($usdt ? 1 : $redis->get('usdtormb'));
+    $usdtormb = (\hiione\library\HiioneServer::getInit()['language'] == 'en-us') ? 1 : $redis->get('usdtormb');
     $market = explode('_', $market);
     if ($market[1] != 'usdt') {
         $usdt = $rates['rates']['usdt-' . $rates['base_coin']];
@@ -54,10 +54,4 @@ function check_arr($rs)
 function getFinanceHash()
 {
     return 'stop';
-}
-
-function convert($size)
-{
-    $unit = array('b', 'kb', 'mb', 'gb', 'tb', 'pb');
-    return @round($size / pow(1024, ($i = floor(log($size, 1024)))), 2) . ' ' . $unit[$i];
 }

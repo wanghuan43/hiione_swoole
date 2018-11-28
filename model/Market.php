@@ -14,6 +14,6 @@ class Market extends HiioneModel
 {
     public function getMarketByName($name)
     {
-        return $this->setTable('market', true)->where(['name' => $name])->find();
+        return $this->setTable('market')->where(['name' => $name])->find();
     }
 }
